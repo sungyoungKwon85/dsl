@@ -2,7 +2,6 @@ package com.example.dsl;
 
 import javax.persistence.EntityManager;
 
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,13 +14,25 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
 @Transactional
+@SpringBootTest
 @Commit
-class DslApplicationTests {
+public class HelloTest {
+    @Autowired
+    EntityManager em;
 
-	@Test
-	void contextLoads() {
-	}
+    @Test
+    public void hello() {
+        Hello hello = new Hello();
+        em.persist(hello);
+
+        JPAQueryFactory queryFactory = new JPAQueryFactory(em);
+        QHello qHello = new QHello("h");
+        Hello result = queryFactory
+            .selectFrom(qHello)
+            .fetchOne();
+        assertThat(result).isEqualTo(hello);
+        assertThat(result.getId()).isEqualTo(hello.getId());
+    }
 
 }
