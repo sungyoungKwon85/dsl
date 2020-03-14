@@ -14,8 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.dsl.dto.MemberSearchCondition;
 import com.example.dsl.dto.MemberTeamDto;
 import com.example.dsl.entity.Member;
+import com.example.dsl.entity.QMember;
 import com.example.dsl.entity.Team;
 
+import static com.example.dsl.entity.QMember.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -107,5 +109,23 @@ class MemberRepositoryTest {
         em.persist(member2);
         em.persist(member3);
         em.persist(member4);
+    }
+
+    // MemberRepository에 QuerydslPredicateExecutor를 상속 받음
+    // 아래와 같은 방식으로 구현이 가능해진다
+    // 한계점
+    //   조인X (묵시적 조인은 가능하지만 left join이 불가능하다.)
+    //   클라이언트가 Querydsl에 의존해야 한다. 서비스 클래스가 Querydsl이라는 구현 기술에 의존해야 한다.
+    //   복잡한 실무환경에서 사용하기에는 한계가 명확하다
+    @Test
+    public void querydslPredicateExecutorTest() {
+        initData();
+        Iterable<Member> results = memberRepository.findAll(
+            member.age.between(20, 40)
+                .and(member.username.eq("member1")));
+
+        for (Member m : results) {
+            System.out.println("member1: " + m);
+        }
     }
 }
