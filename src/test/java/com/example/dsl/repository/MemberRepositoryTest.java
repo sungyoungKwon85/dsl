@@ -9,17 +9,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Direction;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.dsl.dto.MemberDto;
 import com.example.dsl.dto.MemberSearchCondition;
 import com.example.dsl.dto.MemberTeamDto;
 import com.example.dsl.entity.Member;
-import com.example.dsl.entity.QMember;
 import com.example.dsl.entity.Team;
 
 import static com.example.dsl.entity.QMember.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.InstanceOfAssertFactories.map;
 
 @SpringBootTest
 @Transactional
@@ -127,5 +130,114 @@ class MemberRepositoryTest {
         for (Member m : results) {
             System.out.println("member1: " + m);
         }
+    }
+
+    @Test
+    public void sortTest() throws Exception {
+        initData();
+        PageRequest pageRequest = PageRequest.of(0, 3, Sort.by(Direction.DESC, "username"));
+        Page<Member> result = memberRepository.findPageBy(pageRequest);
+        List<Member> members = result.getContent();
+        // Page는 total count까지 날림
+        // join 조건 등이 복잡해지면 count query 성능이 안좋아질 수 있다
+        // 최적화 방법은 searchPageComplex를 참고 하자
+        // 또는 findPageBy에서 countQuery는 분리
+        long totalElements = result.getTotalElements();
+        System.out.println("total elements: " + totalElements);
+
+        // !! 항상 Dto로 변환해서 API response를 만들어야 한다
+        Page<MemberDto> memberDtos =
+            result.map(mm -> new MemberDto(mm.getUsername(), mm.getAge()));
+        for (MemberDto m : memberDtos) {
+            System.out.println("username: " + m.getUsername());
+        }
+    }
+
+    @Test
+    public void sliceTest() throws Exception {
+        initData();
+        PageRequest pageRequest = PageRequest.of(0, 3, Sort.by(Direction.DESC, "username"));
+        // count query를 안날림
+        Slice<Member> result = memberRepository.findSliceBy(pageRequest);
+        List<Member> members = result.getContent();
+        for (Member m : members) {
+            System.out.println("username: " + m.getUsername());
+        }
+    }
+
+    @Test
+    public void bulkTest() throws Exception {
+        initData();
+        int i = memberRepository.bulkAgePlus(20);
+        System.out.println(i);
+
+        // 주의점은 bulkAgePlus 메서드에 코멘트 해둠
+        em.flush();
+//        em.clear(); // @Modifying 에서 clearAutomatically=true 하면 필요 없음
+
+        List<Member> all = memberRepository.findAll();
+        for (Member m : all) {
+            System.out.println("Age: " + m.getAge());
+        }
+    }
+
+    // N+1, N + 1
+    @Test
+    public void findMemberLazy() throws Exception {
+        initData();
+        em.flush();
+        em.clear();
+        //when
+        // Member만 DB에서 가져옴
+        // Memeber 안에 있는 Team은? null로 할 수는 없으니 프록시를 통해 텅빈 결과를 채움
+        List<Member> members = memberRepository.findAll();
+        //then
+        for (Member member : members) {
+            System.out.println("member: " + member.getUsername());
+
+            // hibernateProxy 클래스가 딱 나옴
+            // Lazy 여서 가짜 클래스가 나온거임
+            System.out.println("member.teamClass: " + member.getTeam().getClass());
+
+            // 이제서야 team을 위한 query를 날림
+            // query가 for문만큼 날라감
+            // N + 1 문제 발생
+            // 해결 -> fetch join
+            System.out.println("member.team: " + member.getTeam().getName());
+        }
+
+        // fetch join
+        List<Member> memberFetchJoin = memberRepository.findMemberFetchJoin();
+        System.out.println("===========================");
+
+        // fetch join은 매번 query짜기 귀찮음
+        // 그래서 나온게 entityGraph임
+        List<Member> myAll = memberRepository.findAllBy();
+        // 요렇게 해두됨 ㅋㅋ
+        List<Member> memberEntityGraph = memberRepository.findMemberEntityGraph();
+    }
+
+    @Test
+    public void jpaHintTest() {
+        Member member1 = new Member("member1", 10);
+        memberRepository.save(member1);
+        em.flush();;
+        em.clear();
+
+//        Member found = memberRepository.findById(member1.getId()).get();
+//        found.setUsername("member2");
+
+//        em.flush(); // 이순간 dirty checking 되서 update 쿼리가 나간다
+        // 단점이 있다.
+        // find 하는 순간 메모리에 올려둔다. 원본 보관을 위해.
+
+        // hint에 readonly를 줬기 때문에 update 쿼리가 안날라감
+        Member found = memberRepository.findReadOnlyByUsername("member1");
+        found.setUsername("member2");
+        em.flush();
+
+        // 사실 hint를 쓸일이 크게 없다.
+        // 실무에서 readonly 옵션을 다 넣는다 하더라도 엄청난 차이가 나지 않는다..
+        // 진짜 트래픽이 높은 쿼리에만 넣어도 된다
     }
 }

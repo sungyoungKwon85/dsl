@@ -1,14 +1,19 @@
 package com.example.dsl;
 
+import java.util.Optional;
+import java.util.UUID;
 import javax.persistence.EntityManager;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.domain.AuditorAware;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 @SpringBootApplication
+@EnableJpaAuditing
 public class DslApplication {
 
 	public static void main(String[] args) {
@@ -24,4 +29,9 @@ public class DslApplication {
 		return new JPAQueryFactory(em);
 	}
 
+	@Bean
+	public AuditorAware<String> auditorProvider() {
+		// 실제는 session 등에서 꺼내서 써야 함
+		return () -> Optional.of(UUID.randomUUID().toString());
+	}
 }

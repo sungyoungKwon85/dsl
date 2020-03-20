@@ -23,7 +23,7 @@ import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
-@Repository
+//@Repository
 public class Querydsl4RepositorySupport {
 
     private final Class domainClass;
